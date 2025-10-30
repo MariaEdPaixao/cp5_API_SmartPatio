@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace Infraestrutura.Configuracoes
 {
-    internal class MongoDbConfiguracoes
+    public class MongoDbConfiguracoes
     {
+        public string ConnectionString { get; set; } = string.Empty;
+        public string DatabaseName { get; set; } = string.Empty;
     }
 }
