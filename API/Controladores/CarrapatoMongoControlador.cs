@@ -7,9 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controladores
 {
-    /// <summary>
-    /// Controller para operações CRUD de <see cref="Carrapato"/> armazenados no MongoDB (API v2).
-    /// </summary>
     [ApiController]
     [ApiVersion("2.0")]
     [Route("api/v{version:apiVersion}/mongo/[controller]")]
@@ -19,39 +16,25 @@ namespace API.Controladores
         private readonly CarrapatoMongoService _service;
         private readonly IValidator<CarrapatoCriarDto> _validator;
 
-        /// <summary>
-        /// Construtor do controller de Carrapatos para MongoDB.
-        /// </summary>
-        /// <param name="service">Serviço de aplicação para operações no Mongo.</param>
-        /// <param name="validator">Validador do DTO de criação/atualização.</param>
         public CarrapatoMongoControlador(CarrapatoMongoService service, IValidator<CarrapatoCriarDto> validator)
         {
             _service = service;
             _validator = validator;
         }
 
-        /// <summary>
-        /// Retorna todos os carrapatos cadastrados no MongoDB.
-        /// </summary>
-        /// <returns>Lista de carrapatos.</returns>
         [HttpGet]
-        [ProducesResponseType(typeof(List<CarrapatoLeituraDto>), StatusCodes.Status200OK)]
-        public async Task<ActionResult<List<CarrapatoLeituraDto>>> GetTodos()
+        [ProducesResponseType(typeof(List<CarrapatoMongoLeituraDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<List<CarrapatoMongoLeituraDto>>> GetTodos()
         {
             var carrapatos = await _service.ObterTodosAsync();
-            var dtos = carrapatos.Select(c => MapearParaDto(c)).ToList();
+            var dtos = carrapatos.Select(MapearParaDto).ToList();
             return Ok(dtos);
         }
 
-        /// <summary>
-        /// Retorna um carrapato específico pelo código serial.
-        /// </summary>
-        /// <param name="codigoSerial">Código serial do carrapato.</param>
-        /// <returns>O carrapato encontrado, ou NotFound se não existir.</returns>
         [HttpGet("{codigoSerial}")]
-        [ProducesResponseType(typeof(CarrapatoLeituraDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(CarrapatoMongoLeituraDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult<CarrapatoLeituraDto>> GetPorCodigoSerial(string codigoSerial)
+        public async Task<ActionResult<CarrapatoMongoLeituraDto>> GetPorCodigoSerial(string codigoSerial)
         {
             var carrapato = await _service.ObterPorCodigoSerialAsync(codigoSerial);
             if (carrapato is null)
@@ -61,15 +44,10 @@ namespace API.Controladores
             return Ok(dto);
         }
 
-        /// <summary>
-        /// Adiciona um novo carrapato ao MongoDB.
-        /// </summary>
-        /// <param name="dto">Dados para criação do carrapato.</param>
-        /// <returns>O carrapato criado.</returns>
         [HttpPost]
-        [ProducesResponseType(typeof(CarrapatoLeituraDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(CarrapatoMongoLeituraDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult<CarrapatoLeituraDto>> Post([FromBody] CarrapatoCriarDto dto)
+        public async Task<ActionResult<CarrapatoMongoLeituraDto>> Post([FromBody] CarrapatoCriarDto dto)
         {
             ValidationResult result = await _validator.ValidateAsync(dto);
             if (!result.IsValid)
@@ -77,23 +55,19 @@ namespace API.Controladores
                 return BadRequest(result.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
             }
 
-            var carrapato = new Carrapato(dto.CodigoSerial, dto.IdPatio);
-            await _service.AdicionarAsync(carrapato);
+            var carrapato = new CarrapatoMongo(dto.CodigoSerial, dto.IdPatio);
+            var criado = await _service.AdicionarAsync(carrapato);
 
-            var leituraDto = MapearParaDto(carrapato);
+            var leituraDto = MapearParaDto(criado);
             return CreatedAtAction(nameof(GetPorCodigoSerial),
-                new { codigoSerial = carrapato.CodigoSerial }, leituraDto);
+                new { codigoSerial = criado.CodigoSerial }, leituraDto);
         }
 
-        /// <summary>
-        /// Atualiza os dados de um carrapato existente.
-        /// </summary>
-        /// <param name="codigoSerial">Código serial do carrapato a ser atualizado.</param>
-        /// <param name="dto">Dados para atualização.</param>
         [HttpPut("{codigoSerial}")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(typeof(CarrapatoMongoLeituraDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<ActionResult> Put(string codigoSerial, [FromBody] CarrapatoCriarDto dto)
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<CarrapatoMongoLeituraDto>> Put(string codigoSerial, [FromBody] CarrapatoCriarDto dto)
         {
             ValidationResult result = await _validator.ValidateAsync(dto);
             if (!result.IsValid)
@@ -101,26 +75,32 @@ namespace API.Controladores
                 return BadRequest(result.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
             }
 
-            var carrapato = new Carrapato(dto.CodigoSerial, dto.IdPatio);
-            await _service.AtualizarAsync(codigoSerial, carrapato);
-            return NoContent();
+            var carrapato = new CarrapatoMongo(dto.CodigoSerial, dto.IdPatio);
+            var atualizado = await _service.AtualizarAsync(codigoSerial, carrapato);
+
+            if (atualizado is null)
+                return NotFound($"Carrapato com código {codigoSerial} não encontrado.");
+
+            var leituraDto = MapearParaDto(atualizado);
+            return Ok(leituraDto);
         }
 
-        /// <summary>
-        /// Remove um carrapato do MongoDB pelo código serial.
-        /// </summary>
-        /// <param name="codigoSerial">Código serial do carrapato a ser removido.</param>
         [HttpDelete("{codigoSerial}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<ActionResult> Delete(string codigoSerial)
         {
+            var existente = await _service.ObterPorCodigoSerialAsync(codigoSerial);
+            if (existente is null)
+                return NotFound($"Carrapato com código {codigoSerial} não encontrado.");
+
             await _service.DeletarAsync(codigoSerial);
-            return NoContent();
+
+            return Ok(new { mensagem = $"Carrapato {codigoSerial} excluído com sucesso." });
         }
 
-        private CarrapatoLeituraDto MapearParaDto(Carrapato carrapato)
+        private CarrapatoMongoLeituraDto MapearParaDto(CarrapatoMongo carrapato)
         {
-            return new CarrapatoLeituraDto(
+            return new CarrapatoMongoLeituraDto(
                 carrapato.Id,
                 carrapato.CodigoSerial,
                 carrapato.StatusBateria.ToString(),

@@ -12,16 +12,16 @@ namespace Aplicacao.Servicos
             _repositorio = repositorio;
         }
 
-        public async Task<List<Carrapato>> ObterTodosAsync() =>
+        public async Task<List<CarrapatoMongo>> ObterTodosAsync() =>
             await _repositorio.ObterTodosAsync();
 
-        public async Task<Carrapato?> ObterPorCodigoSerialAsync(string codigoSerial) =>
+        public async Task<CarrapatoMongo?> ObterPorCodigoSerialAsync(string codigoSerial) =>
             await _repositorio.ObterPorCodigoSerialAsync(codigoSerial);
 
-        public async Task AdicionarAsync(Carrapato carrapato) =>
+        public async Task<CarrapatoMongo> AdicionarAsync(CarrapatoMongo carrapato) =>
             await _repositorio.AdicionarAsync(carrapato);
 
-        public async Task AtualizarAsync(string codigoSerial, Carrapato carrapato) =>
+        public async Task<CarrapatoMongo?> AtualizarAsync(string codigoSerial, CarrapatoMongo carrapato) =>
             await _repositorio.AtualizarAsync(codigoSerial, carrapato);
 
         public async Task DeletarAsync(string codigoSerial) =>
