@@ -5,7 +5,6 @@ using DotNetEnv;
 using Infraestrutura.Contexto;
 using Infraestrutura.Repositorios;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using System.Reflection;
 using API;
 using API.Saude;
@@ -14,7 +13,6 @@ using Dominio.Interfaces.Mottu;
 using HealthChecks.UI.Client;
 using Infraestrutura.Repositorios.Mottu;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
@@ -22,30 +20,42 @@ using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Infraestrutura.Configuracoes;
 using Infraestrutura.Repositorios.MongoDb;
-
-// TODO: adicionar logica de vinculo usuario patio
-// TODO: adicionar logica de moto com patio
-// TODO: adicionar logica de moto com carrapato
-// TODO: adicionar logica de carrapato com patio
+using CarrapatoRepositorio = Infraestrutura.Repositorios.CarrapatoRepositorio;
+using FluentValidation;
+using Aplicacao.Validacoes;
+using Aplicacao.DTOs.Carrapato;
 
 Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-string? connectionString = null;
+string? connectionStringOracle = null;
+
+// Read Mongo connection string early to avoid null when registering health checks
+var rawMongoConn = Environment.GetEnvironmentVariable("ConnectionString__Mongo") ?? builder.Configuration.GetConnectionString("Mongo");
+string? mongoConn = null;
+if (!string.IsNullOrWhiteSpace(rawMongoConn))
+{
+    mongoConn = rawMongoConn.Trim().Trim('"');
+}
 
 // Add services to the container.
 builder.Services.AddControllers();
 
+// Register the Carrapato validator explicitly to avoid relying on FluentValidation.AspNetCore extensions
+builder.Services.AddTransient<IValidator<CarrapatoCriarDto>, CarrapatoCriarDtoValidator>();
+
 // Configuração MongoDB para Carrapato
 builder.Services.Configure<MongoDbConfiguracoes>(options =>
 {
-    options.ConnectionString = Environment.GetEnvironmentVariable("ConnectionString__Mongo") ?? "";
-    options.DatabaseName = Environment.GetEnvironmentVariable("MongoDb__DatabaseName") ?? "MottuDB";
+    options.ConnectionString = mongoConn ?? string.Empty;
+    options.DatabaseName = (Environment.GetEnvironmentVariable("MongoDb__DatabaseName") ?? "MottuDB").Trim().Trim('"');
 });
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<CarrapatoMongoRepositorio>();
 builder.Services.AddScoped<CarrapatoMongoService>();
+// register the custom MongoHealthCheck for DI
+builder.Services.AddScoped<MongoHealthCheck>();
 
 // Versão da API
 builder.Services.AddApiVersioning(options =>
@@ -69,8 +79,6 @@ builder.Services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwa
 // Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddHealthChecks();
-
 builder.Services.AddSwaggerGen(swagger =>
 {
     // XML comments
@@ -78,7 +86,7 @@ builder.Services.AddSwaggerGen(swagger =>
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     swagger.IncludeXmlComments(xmlPath);
 
-    // Inclui controllers nas docs corretas por versão
+    // Inclui controllers nos docs corretas por versão
     swagger.DocInclusionPredicate((docName, apiDesc) =>
     {
         // Use the ApiExplorer-assigned GroupName (e.g. "v1") to decide which actions belong to each Swagger doc.
@@ -86,17 +94,17 @@ builder.Services.AddSwaggerGen(swagger =>
         if (!string.IsNullOrEmpty(apiDesc.GroupName))
             return string.Equals(apiDesc.GroupName, docName, StringComparison.OrdinalIgnoreCase);
 
-        // If no group name is present, include the endpoint only in the default doc (optional).
+        
         return false;
     });
 });
 
 try
 {
-    connectionString = Environment.GetEnvironmentVariable("ConnectionString__Oracle") ??
+    connectionStringOracle = Environment.GetEnvironmentVariable("ConnectionString__Oracle") ??
                            builder.Configuration.GetConnectionString("Oracle");
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseOracle(connectionString));
+        options.UseOracle(connectionStringOracle));
 }
 catch (ArgumentNullException)
 {
@@ -118,14 +126,23 @@ builder.Services.AddScoped<UsuarioServico>();
 builder.Services.AddScoped<CarrapatoServico>();
 
 // HealthCheck
-builder.Services.AddHealthChecks()
-    .AddOracle(
-        connectionString: connectionString,
+var healthChecksBuilder = builder.Services.AddHealthChecks();
+
+if (!string.IsNullOrWhiteSpace(connectionStringOracle))
+{
+    healthChecksBuilder.AddOracle(
+        connectionString: connectionStringOracle,
         name: "Oracle",
-        tags: new[] { "ready", "oracle-database" })
-    .AddCheck<CarrapatoHealthCheck>(
-        "carrapato_repositorio",
-        tags: new[] { "ready" });
+        tags: new[] { "ready", "oracle-database" });
+}
+
+healthChecksBuilder.AddCheck<MongoHealthCheck>(
+    "mongo_database",
+    tags: new[] { "ready", "mongo-db" });
+
+healthChecksBuilder.AddCheck<CarrapatoHealthCheck>(
+    "carrapato_repositorio",
+    tags: new[] { "ready" });
 
 var app = builder.Build();
 
@@ -147,7 +164,6 @@ if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
 
 app.UseHttpsRedirection();
 
-
 // Liveness: retorna 200 so se o app estiver rodando
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
@@ -157,6 +173,12 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
 
 // Readiness: verifica dependencias com tag "ready"
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecks("/health", new HealthCheckOptions
 {
     Predicate = registration => registration.Tags.Contains("ready"),
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse

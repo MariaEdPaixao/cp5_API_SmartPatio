@@ -1,10 +1,15 @@
 ﻿using Aplicacao.DTOs.Carrapato;
 using Aplicacao.Servicos;
 using Dominio.Persistencia;
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controladores
 {
+    /// <summary>
+    /// Controller para operações CRUD de <see cref="Carrapato"/> armazenados no MongoDB (API v2).
+    /// </summary>
     [ApiController]
     [ApiVersion("2.0")]
     [Route("api/v{version:apiVersion}/mongo/[controller]")]
@@ -12,10 +17,17 @@ namespace API.Controladores
     public class CarrapatoMongoControlador : ControllerBase
     {
         private readonly CarrapatoMongoService _service;
+        private readonly IValidator<CarrapatoCriarDto> _validator;
 
-        public CarrapatoMongoControlador(CarrapatoMongoService service)
+        /// <summary>
+        /// Construtor do controller de Carrapatos para MongoDB.
+        /// </summary>
+        /// <param name="service">Serviço de aplicação para operações no Mongo.</param>
+        /// <param name="validator">Validador do DTO de criação/atualização.</param>
+        public CarrapatoMongoControlador(CarrapatoMongoService service, IValidator<CarrapatoCriarDto> validator)
         {
             _service = service;
+            _validator = validator;
         }
 
         /// <summary>
@@ -59,6 +71,12 @@ namespace API.Controladores
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult<CarrapatoLeituraDto>> Post([FromBody] CarrapatoCriarDto dto)
         {
+            ValidationResult result = await _validator.ValidateAsync(dto);
+            if (!result.IsValid)
+            {
+                return BadRequest(result.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+            }
+
             var carrapato = new Carrapato(dto.CodigoSerial, dto.IdPatio);
             await _service.AdicionarAsync(carrapato);
 
@@ -77,6 +95,12 @@ namespace API.Controladores
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<ActionResult> Put(string codigoSerial, [FromBody] CarrapatoCriarDto dto)
         {
+            ValidationResult result = await _validator.ValidateAsync(dto);
+            if (!result.IsValid)
+            {
+                return BadRequest(result.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+            }
+
             var carrapato = new Carrapato(dto.CodigoSerial, dto.IdPatio);
             await _service.AtualizarAsync(codigoSerial, carrapato);
             return NoContent();
