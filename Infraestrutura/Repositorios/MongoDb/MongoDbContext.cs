@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Infraestrutura.Persistencia.MongoDb
+namespace Infraestrutura.Repositorios.MongoDb
 {
     public class MongoDbContext
     {
