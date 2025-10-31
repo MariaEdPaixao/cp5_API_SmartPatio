@@ -44,6 +44,15 @@ namespace API.Controladores
             return Ok(dto);
         }
 
+        /// <remarks>
+        /// Exemplo de payload:
+        /// <example>
+        /// {
+        ///   "CodigoSerial": "CAR-0001-XYZ",
+        ///   "IdPatio": 1
+        /// }
+        /// </example>
+        /// </remarks>
         [HttpPost]
         [ProducesResponseType(typeof(CarrapatoMongoLeituraDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
