@@ -6,40 +6,42 @@ namespace Infraestrutura.Repositorios.MongoDb
 {
     public class CarrapatoMongoRepositorio
     {
-        private readonly IMongoCollection<Carrapato> _collection;
+        private readonly IMongoCollection<CarrapatoMongo> _collection;
 
         public CarrapatoMongoRepositorio(MongoDbContext context)
         {
-            _collection = context.Database.GetCollection<Carrapato>("Carrapatos");
+            _collection = context.Database.GetCollection<CarrapatoMongo>("Carrapatos");
         }
-
-        public async Task<List<Carrapato>> ObterTodosAsync()
+        public async Task<List<CarrapatoMongo>> ObterTodosAsync()
         {
             return await _collection.Find(_ => true).ToListAsync();
         }
 
-        public async Task<Carrapato?> ObterPorCodigoSerialAsync(string codigoSerial)
+        public async Task<CarrapatoMongo?> ObterPorCodigoSerialAsync(string codigoSerial)
         {
             return await _collection.Find(c => c.CodigoSerial == codigoSerial).FirstOrDefaultAsync();
         }
 
-        public async Task<Carrapato> AdicionarAsync(Carrapato carrapato)
+        public async Task<CarrapatoMongo> AdicionarAsync(CarrapatoMongo carrapato)
         {
             await _collection.InsertOneAsync(carrapato);
             return await ObterPorCodigoSerialAsync(carrapato.CodigoSerial) ?? carrapato;
         }
 
-        public async Task<Carrapato?> AtualizarAsync(string codigoSerial, Carrapato carrapato)
+        public async Task<CarrapatoMongo?> AtualizarAsync(string codigoSerial, CarrapatoMongo carrapato)
         {
-            await _collection.ReplaceOneAsync(c => c.CodigoSerial == codigoSerial, carrapato);
-            return await ObterPorCodigoSerialAsync(codigoSerial);
+            var existente = await _collection.Find(c => c.CodigoSerial == codigoSerial).FirstOrDefaultAsync();
+            if (existente is null) return null;
+
+            carrapato.Id = existente.Id;
+
+            await _collection.ReplaceOneAsync(c => c.Id == existente.Id, carrapato);
+            return carrapato;
         }
 
         public async Task DeletarAsync(string codigoSerial)
         {
             await _collection.DeleteOneAsync(c => c.CodigoSerial == codigoSerial);
         }
-
-
     }
 }
