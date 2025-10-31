@@ -20,6 +20,8 @@ using Microsoft.AspNetCore.Mvc.Versioning;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.Options;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using Infraestrutura.Configuracoes;
+using Infraestrutura.Repositorios.MongoDb;
 
 // TODO: adicionar logica de vinculo usuario patio
 // TODO: adicionar logica de moto com patio
@@ -34,6 +36,16 @@ string? connectionString = null;
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Configuração MongoDB para Carrapato
+builder.Services.Configure<MongoDbConfiguracoes>(options =>
+{
+    options.ConnectionString = Environment.GetEnvironmentVariable("ConnectionString__Mongo") ?? "";
+    options.DatabaseName = Environment.GetEnvironmentVariable("MongoDb__DatabaseName") ?? "MottuDB";
+});
+builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.AddScoped<CarrapatoMongoRepositorio>();
+builder.Services.AddScoped<CarrapatoMongoService>();
 
 // Versão da API
 builder.Services.AddApiVersioning(options =>
@@ -78,7 +90,6 @@ builder.Services.AddSwaggerGen(swagger =>
         return false;
     });
 });
-
 
 try
 {
