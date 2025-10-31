@@ -1,8 +1,9 @@
-# Mottu API - Gestão de Motos e Patios
+# CP5: SmartPatio
 
-API RESTful desenvolvida em .NET 8 para gerenciamento de motos e patios, utilizando Oracle, Entity Framework Core, Clean Architecture e princípios de DDD.
+## **Projeto:** Mottu API - Gestão de Motos e Patios
 
-*solução criada para o **Challenge Mottu***
+API RESTful desenvolvida em .NET 8 para gerenciamento de motos e patios, utilizando MongoDB, Clean Architecture, princípios de DDD.
+
 ---
 
 ## 📦 Estrutura da Solução
@@ -16,7 +17,9 @@ API RESTful desenvolvida em .NET 8 para gerenciamento de motos e patios, utiliza
 
 ## 🏛️ Justificativa da Arquitetura
 
-A solução foi estruturada seguindo os princípios da Clean Architecture e Domain-Driven Design (DDD), visando alta coesão, baixo acoplamento e facilidade de manutenção. A separação em camadas (Domínio, Aplicação, Infraestrutura e API) permite que regras de negócio fiquem isoladas de detalhes de implementação, como persistência e exposição via HTTP. O uso de DTOs garante segurança e clareza na comunicação entre camadas e com o cliente. O Entity Framework Core foi adotado para abstrair o acesso ao banco Oracle, facilitando testes e evolução futura. A API expõe endpoints RESTful com boas práticas, incluindo paginação, status codes adequados e documentação automática via Swagger/OpenAPI, promovendo interoperabilidade e facilidade de uso para integradores.
+A solução foi estruturada seguindo os princípios da Clean Architecture e Domain-Driven Design (DDD), visando alta coesão, baixo acoplamento e facilidade de manutenção. A separação em camadas (Domínio, Aplicação, Infraestrutura e API) permite que regras de negócio fiquem isoladas de detalhes de implementação, como persistência e exposição via HTTP. O uso de DTOs garante segurança e clareza na comunicação entre camadas e com o cliente. O Entity Framework Core foi adotado para abstrair o acesso ao banco Oracle, facilitando testes e evolução futura.
+
+A **v1** da API utiliza Oracle (EF Core), enquanto a **v2** adiciona persistência em **MongoDB**, com documentação integrada via Swagger e versionamento de API.
 
 ---
 
@@ -26,6 +29,9 @@ A solução foi estruturada seguindo os princípios da Clean Architecture e Doma
 - Cadastro, consulta, atualização e remoção de patios.
 - Cadastro, consulta, atualização e remoção de usuários.
 - Cadastro, consulta, atualização e remoção de carrapatos (rastreador).
+  - Persistência híbrida:
+    - v1 → Oracle (relacional)
+    - v2 → MongoDB (não relacional)
 - Listagens auxiliares de modelos de moto e zonas.
 - Paginação no endpoint de listagem de motos.
 - Validações de domínio e unicidade de placa.
@@ -175,23 +181,18 @@ Verifica se a aplicação está rodando (não verifica dependências externas). 
 
 Pré-requisitos: .NET SDK 8 instalado. Banco Oracle acessível e string de conexão válida.
 
-1) Configure a string de conexão
-- Opção A — arquivo `.env` na raiz da solução:
+## ⚙️ Configuração de Ambiente (.env)
+
+Crie o arquivo `.env` na pasta `API` (raiz) com as variáveis de conexão:
+
+```env
+# Exemplo genérico de conexão Oracle (substitua com suas credenciais)
+ConnectionString__Oracle="Data Source=SEU_HOST:PORTA/SEU_SERVICO;User Id=SEU_USUARIO;Password=SUA_SENHA;"
+
+# Conexão MongoDB local (para versão 2 da API)
+ConnectionString__Mongo = "mongodb://admin:admin123@localhost:27017/?authSource=admin"
 ```
-Connection__String=Data Source=HOST:1521/SERVICE;User ID=USUARIO;Password=SENHA
-```
-- Opção B — `appsettings.json` (API/appsettings.json):
-```
-{
-  "ConnectionStrings": {
-    "Oracle": "Data Source=HOST:1521/SERVICE;User ID=USUARIO;Password=SENHA"
-  }
-}
-```
-- Opção C — variável de ambiente (sessão atual do Windows CMD):
-```
-set Connection__String=Data Source=HOST:1521/SERVICE;User ID=USUARIO;Password=SENHA
-```
+
 Observação: a aplicação lê `Connection__String` via variável de ambiente; se ausente, usa `ConnectionStrings:Oracle` do appsettings.
 
 2) Restaurar e compilar
@@ -219,37 +220,29 @@ Acesse o Swagger em:
 - HTTP:  http://localhost:5157/swagger
 - HTTPS: https://localhost:7018/swagger
 
+O Swagger exibirá duas versões da API:
+- v1 → Oracle (banco relacional)
+- v2 → MongoDB (armazenamento não relacional)
+
 ---
 
-## 🐳 Executar via Docker
+## 🐳 Seção Docker (para MongoDB local)
 
-A API está disponível como imagem pública no Docker Hub: `saesminerais/mottu:3.6.7`.
+Para rodar o **MongoDB localmente** e testar os endpoints da versão 2 da API (`/api/v2/mongo`), siga os passos abaixo:
 
-- Pré-requisito: ter o Docker instalado e acesso à base Oracle.
-- A imagem escuta na porta interna 8080.
+### 1. Baixar a imagem do MongoDB
+Execute o comando para baixar a imagem oficial do MongoDB:
+```bash
+docker pull mongo
+```
 
-Passos:
-1) Baixe a imagem
-```
-docker pull saesminerais/mottu:3.6.7
-```
-2) Execute o container (Windows CMD):
-```
-docker run -d --name mottu-api -p 8080:8080 -e Connection__String="Data Source=HOST:1521/SERVICE;User ID=USUARIO;Password=SENHA" saesminerais/mottu:3.6.7
-```
-2.1) Execute o container (GitBash / Linux):
-```
-docker run -d \
---name mottu-api \
--p 8080:8080 \
--e Connection__String="Data Source=HOST:1521/SERVICE;User ID=USUARIO;Password=SENHA" \
-saesminerais/mottu:3.6.7
-```
-Notas:
-- Se preferir usar o appsettings, você pode fornecer `-e ConnectionStrings__Oracle="..."` (a aplicação tenta `Connection__String` e, se ausente, usa `ConnectionStrings:Oracle`).
-- Em alguns ambientes, para acessar um Oracle no host a partir do container, use `host.docker.internal` no Data Source (ex.: `Data Source=host.docker.internal:1521/SERVICE;...`).
+### 2. Criar e executar o container
 
-Acesse o Swagger: http://localhost:8080/swagger
+Crie o container com usuário e senha definidos, na porta padrão 27017:
+
+```bash
+docker run -d -p 27017:27017 --name mongodb -e MONGO_INITDB_ROOT_USERNAME=admin -e MONGO_INITDB_ROOT_PASSWORD=admin123 mongo
+```
 
 ---
 
