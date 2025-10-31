@@ -1,8 +1,9 @@
-# Mottu API - Gestão de Motos e Patios
+# CP5: SmartPatio
 
-API RESTful desenvolvida em .NET 8 para gerenciamento de motos e patios, utilizando Oracle, Entity Framework Core, Clean Architecture e princípios de DDD.
+## **Projeto:** Mottu API - Gestão de Motos e Patios
 
-*solução criada para o **Challenge Mottu***
+API RESTful desenvolvida em .NET 8 para gerenciamento de motos e patios, utilizando MongoDB, Clean Architecture, princípios de DDD.
+
 ---
 
 ## 📦 Estrutura da Solução
